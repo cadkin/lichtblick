@@ -33,3 +33,7 @@ test-results/*
 .scannerwork
 eslint-report.json
 blob-report/*
+
+# Nix
+result
+.direnv/
