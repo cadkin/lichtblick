@@ -4,6 +4,11 @@
 
 const path = require("path");
 
+if (process.env.LICHTBLICK_YARN_PATH != undefined) {
+  require(process.env.LICHTBLICK_YARN_PATH);
+  return;
+}
+
 if (process.env.COREPACK_ROOT == undefined) {
   console.error("This repository uses corepack. Enable corepack by running `corepack enable`");
   console.error("Learn more at: https://nodejs.org/api/corepack.html");
