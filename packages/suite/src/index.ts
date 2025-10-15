@@ -836,7 +836,7 @@ export type SettingsTreeField = SettingsTreeFieldValue & {
   tooltip?: string;
 };
 
-export type SettingsTreeFields = Record<string, undefined | SettingsTreeField>;
+export type SettingsTreeFields = Record<string, null | undefined | SettingsTreeField>;
 
 export type SettingsTreeChildren = Record<string, undefined | SettingsTreeNode>;
 
