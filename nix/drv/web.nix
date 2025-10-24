@@ -5,7 +5,7 @@
 
   yarn-berry_3,
 
-  nodejs
+  nodejs, electron
 }:
 
 stdenv.mkDerivation rec {
@@ -26,6 +26,7 @@ stdenv.mkDerivation rec {
 
   env = {
     LICHTBLICK_YARN_PATH = "${lib.getExe yarn-berry_3}";
+    ELECTRON_OVERRIDE_DIST_PATH = "${electron}/bin";
     ELECTRON_SKIP_BINARY_DOWNLOAD = 1;
   };
 
@@ -38,5 +39,10 @@ stdenv.mkDerivation rec {
     mkdir -p $ASSETS_DIR
 
     cp -r web/.webpack/* $ASSETS_DIR
+  '';
+
+  doCheck = true;
+  checkPhase = ''
+    yarn run test
   '';
 }

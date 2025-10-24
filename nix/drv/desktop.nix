@@ -21,13 +21,18 @@ stdenv.mkDerivation rec {
   nativeBuildInputs = [
     makeWrapper
     yarn-berry_3.yarnBerryConfigHook
-    yarn-berry_3
+    yarn-berry_3.yarn-berry-offline
     nodejs
   ];
 
   env = {
-    LICHTBLICK_YARN_PATH = "${lib.getExe yarn-berry_3}";
+    LICHTBLICK_YARN_PATH = "${lib.getExe yarn-berry_3.yarn-berry-offline}";
+    ELECTRON_OVERRIDE_DIST_PATH = "${electron}/bin";
     ELECTRON_SKIP_BINARY_DOWNLOAD = 1;
+  };
+
+  passthru = {
+    inherit env;
   };
 
   buildPhase = ''
@@ -42,5 +47,10 @@ stdenv.mkDerivation rec {
 
     makeWrapper ${lib.getExe electron} $out/bin/${pname} \
       --add-flags $ASSETS_DIR
+  '';
+
+  doCheck = true;
+  checkPhase = ''
+    yarn run test
   '';
 }

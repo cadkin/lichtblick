@@ -11,7 +11,7 @@
     };
   };
 
-  outputs = inputs @ { self, parts, ... }: (
+  outputs = inputs @ { self, nixpkgs, parts, ... }: (
     parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
@@ -20,32 +20,17 @@
         "aarch64-darwin"
       ];
 
-      perSystem = { pkgs, self', ... }: {
-        packages = let
-          callPackageArgs = {
-            src = self;
-            version = pkgs.lib.pipe ./package.json [
-              (builtins.readFile)
-              (builtins.fromJSON)
-              (builtins.getAttr "version")
-            ];
-          };
-        in {
-          default = self'.packages.desktop;
+      flake.lichtblick.version = nixpkgs.lib.pipe ./package.json [
+        (builtins.readFile)
+        (builtins.fromJSON)
+        (builtins.getAttr "version")
+      ];
 
-          desktop = pkgs.callPackage ./nix/desktop.nix callPackageArgs;
-          web = pkgs.callPackage ./nix/web.nix callPackageArgs;
-        };
-
-        apps = {
-          update-missing-hashes = {
-            type = "app";
-            program = pkgs.writeShellScriptBin "update-missing-hashes" ''
-              ${pkgs.yarn-berry_3.yarn-berry-fetcher}/bin/yarn-berry-fetcher missing-hashes ./yarn.lock > ./nix/missing-hashes.json
-            '';
-          };
-        };
-      };
+      imports = [
+        ./nix/modules/develop.nix
+        ./nix/modules/packages.nix
+        ./nix/modules/apps.nix
+      ];
     }
   );
 }
