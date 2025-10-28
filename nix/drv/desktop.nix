@@ -1,11 +1,11 @@
 {
   src, version,
 
-  lib, stdenv, makeWrapper,
+  lib, stdenv, makeWrapper, makeDesktopItem, copyDesktopItems,
 
   yarn-berry_3,
 
-  nodejs, electron
+  nodejs, electron, imagemagick
 }:
 
 stdenv.mkDerivation rec {
@@ -15,7 +15,7 @@ stdenv.mkDerivation rec {
   missingHashes = ./missing-hashes.json;
   offlineCache = yarn-berry_3.fetchYarnBerryDeps {
     inherit src missingHashes;
-    hash = "sha256-jYD+SdgwR3+XUukmzzixHCbt8Xdrzr0RFqL00gn++yg=";
+    hash = "sha256-dDTJIvKSEFT3hejhyQJph9v4yjIjVQ99HwzgmPzHAY4=";
   };
 
   nativeBuildInputs = [
@@ -23,6 +23,8 @@ stdenv.mkDerivation rec {
     yarn-berry_3.yarnBerryConfigHook
     yarn-berry_3.yarn-berry-offline
     nodejs
+    imagemagick
+    copyDesktopItems
   ];
 
   env = {
@@ -40,17 +42,55 @@ stdenv.mkDerivation rec {
   '';
 
   installPhase = ''
-    ASSETS_DIR="$out/share/${pname}/assets"
-    mkdir -p $ASSETS_DIR
+    runHook preInstall
 
-    cp -r desktop/.webpack/* $ASSETS_DIR
+    SHARE_DIR="$out/share/lichtblick"
+    mkdir -p $SHARE_DIR
 
-    makeWrapper ${lib.getExe electron} $out/bin/${pname} \
-      --add-flags $ASSETS_DIR
+    # Wrapper
+    WEBPACK_DIR="$SHARE_DIR/webpack"
+    mkdir -p $WEBPACK_DIR
+
+    cp -r desktop/.webpack/* $WEBPACK_DIR
+
+    makeWrapper ${lib.getExe electron} $out/bin/lichtblick \
+      --add-flags $WEBPACK_DIR
+
+    # Desktop
+    mkdir -p $out/share/icons/hicolor/{16x16,32x32,48x48,64x64,128x128,256x256}/apps
+    for dimension in 16x16 32x32 48x48 64x64 128x128 256x256; do
+      magick convert -background none packages/suite-desktop/resources/icon/icon.svg \
+        -geometry $dimension \
+        $out/share/icons/hicolor/$dimension/apps/lichtblick.png
+    done
+
+    runHook postInstall
   '';
+
+  desktopItems = [
+    (makeDesktopItem {
+      name = "lichtblick";
+      desktopName = "Lichtblick";
+      exec = "lichtblick";
+      icon = "lichtblick";
+      comment = "Integrated visualization and diagnosis tool for robotics";
+      categories = [
+        "Development"
+      ];
+      mimeTypes = [
+        "application/octet-stream"
+        "application/zip"
+        "x-scheme-handler/lichtblick"
+      ];
+    })
+  ];
 
   doCheck = true;
   checkPhase = ''
     yarn run test
   '';
+
+  meta = {
+    description = "Integrated visualization and diagnosis tool for robotics";
+  };
 }
