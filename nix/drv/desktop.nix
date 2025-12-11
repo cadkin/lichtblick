@@ -15,7 +15,7 @@ stdenv.mkDerivation rec {
   missingHashes = ./missing-hashes.json;
   offlineCache = yarn-berry_3.fetchYarnBerryDeps {
     inherit src missingHashes;
-    hash = "sha256-dDTJIvKSEFT3hejhyQJph9v4yjIjVQ99HwzgmPzHAY4=";
+    hash = "sha256-Hpza/in/r3wuG0TOYD/7PDb8l9621DmXyVAFc2EYy74=";
   };
 
   nativeBuildInputs = [
