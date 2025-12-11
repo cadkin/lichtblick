@@ -28,7 +28,7 @@ stdenv.mkDerivation rec {
   ];
 
   env = {
-    LICHTBLICK_YARN_PATH = "${lib.getExe yarn-berry_3.yarn-berry-offline}";
+    LICHTBLICK_YARN_PATH = "${lib.getExe yarn-berry_3}";
     ELECTRON_OVERRIDE_DIST_PATH = "${electron}/bin";
     ELECTRON_SKIP_BINARY_DOWNLOAD = 1;
   };
