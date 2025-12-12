@@ -154,6 +154,7 @@ export type UrdfUserData = BaseUserData & {
   renderables: Map<string, Renderable>;
   previewEnable: boolean;
   previewTopic: string;
+  previewTrajectory: { names: string[], points: JointTrajectoryPoint[] };
 };
 
 enum EmbeddedMaterialUsage {
@@ -620,6 +621,37 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     }
   };
 
+  #setJoint = (instanceId: string, jointName: string, value: number): void => {
+    const transforms = this.#transformsByInstanceId.get(instanceId);
+    if (!transforms) {
+      return;
+    }
+
+    const transformData = transforms.find((t) => t.joint.name === jointName);
+    if (!transformData) {
+      return;
+    }
+
+    const joint = transformData.joint;
+    const frame = this.renderer.transformTree.getOrCreateFrame(transformData.child);
+    const frameKey = `frame:${frame.id}`;
+    const isAngular = joint.jointType === "revolute" || joint.jointType === "continuous";
+    const axis = tempVec3a.set(joint.axis.x, joint.axis.y, joint.axis.z);
+
+    if (isAngular) {
+      const degrees = value;
+      const quaternion = tempQuaternion1.setFromAxisAngle(axis, degrees * DEG2RAD);
+      const euler = tempEuler.setFromQuaternion(quaternion);
+      frame.offsetEulerDegrees = [euler.x * RAD2DEG, euler.y * RAD2DEG, euler.z * RAD2DEG];
+      this.saveSetting(["transforms", frameKey, "rpyCoefficient"], frame.offsetEulerDegrees);
+    } else {
+      const scale = value;
+      axis.multiplyScalar(scale);
+      frame.offsetPosition = [axis.x, axis.y, axis.z];
+      this.saveSetting(["transforms", frameKey, "xyzOffset"], frame.offsetPosition);
+    }
+  };
+
   #handleSettingsUpdate = (action: { action: "update" } & SettingsTreeAction): void => {
     const path = action.payload.path;
 
@@ -627,34 +659,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       // ["layers", instanceId, "joints", jointName, "manual"]
       const instanceId = path[1]!;
       const jointName = path[3]!;
-      const transforms = this.#transformsByInstanceId.get(instanceId);
-      if (!transforms) {
-        return;
-      }
 
-      const transformData = transforms.find((t) => t.joint.name === jointName);
-      if (!transformData) {
-        return;
-      }
-
-      const joint = transformData.joint;
-      const frame = this.renderer.transformTree.getOrCreateFrame(transformData.child);
-      const frameKey = `frame:${frame.id}`;
-      const isAngular = joint.jointType === "revolute" || joint.jointType === "continuous";
-      const axis = tempVec3a.set(joint.axis.x, joint.axis.y, joint.axis.z);
-
-      if (isAngular) {
-        const degrees = action.payload.value as number;
-        const quaternion = tempQuaternion1.setFromAxisAngle(axis, degrees * DEG2RAD);
-        const euler = tempEuler.setFromQuaternion(quaternion);
-        frame.offsetEulerDegrees = [euler.x * RAD2DEG, euler.y * RAD2DEG, euler.z * RAD2DEG];
-        this.saveSetting(["transforms", frameKey, "rpyCoefficient"], frame.offsetEulerDegrees);
-      } else {
-        const scale = action.payload.value as number;
-        axis.multiplyScalar(scale);
-        frame.offsetPosition = [axis.x, axis.y, axis.z];
-        this.saveSetting(["transforms", frameKey, "xyzOffset"], frame.offsetPosition);
-      }
+      this.#setJoint(instanceId, jointName, action.payload.value as number);
     } else if (path.length === 3) {
       // ["layers", instanceId, field]
       this.saveSetting(path, action.payload.value);
@@ -688,6 +694,22 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       } else if (field === "topic") {
         urdf = this.#urdfsByTopic.get(action.payload.value as string);
         this.#loadUrdf({ instanceId, urdf });
+      } else if (field == "previewIndex") {
+        const instanceId = path[1]!;
+        const names = renderable?.userData.previewTrajectory.names;
+        const point = renderable?.userData.previewTrajectory.points[action.payload.value as number]!;
+
+        if (names == undefined || point == undefined) {
+          return;
+        }
+
+        console.log(names);
+        console.log(point);
+
+        for (let i = 0; i < names.length; i++) {
+          this.#setJoint(instanceId, names[i]!, point.positions[i]! * RAD2DEG);
+        }
+
       } else {
         this.#loadUrdf({ instanceId, urdf });
       }
@@ -695,14 +717,15 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
   };
 
   #handleMoveItDisplayTrajectory = (messageEvent: PartialMessageEvent<DisplayTrajectory>): void => {
+    const topic = messageEvent.topic;
     const msg = messageEvent.message as DisplayTrajectory;
 
     const trajectories = msg.trajectory ?? [];
-    if (trajectories.length == 0) {
+    if (trajectories.length === 0) {
       return;
     }
 
-    const names = trajectories[0]?.joint_trajectory.joint_names;
+    const names = trajectories[0]!.joint_trajectory.joint_names;
     let points: JointTrajectoryPoint[] = [];
 
     for (const trajectory of trajectories) {
@@ -711,6 +734,16 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     }
 
     console.log(`points: ${points.length}, joints: ${names}`);
+
+    const subscribedRenderables = filterMap(this.renderables, ([instanceId, renderable]) =>
+      renderable.userData.previewEnable && renderable.userData.previewTopic === topic
+        ? renderable
+        : undefined,
+    );
+
+    for (const renderable of subscribedRenderables) {
+      renderable.userData.previewTrajectory = { names, points };
+    }
   };
 
   #handleRobotDescription = (messageEvent: PartialMessageEvent<{ data: string }>): void => {
@@ -918,6 +951,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         parameter,
         previewEnable,
         previewTopic,
+        previewTrajectory: { names: [], points: [] }
       });
       this.add(renderable);
       this.renderables.set(instanceId, renderable);
