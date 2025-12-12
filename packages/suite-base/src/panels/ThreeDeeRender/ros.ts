@@ -127,6 +127,16 @@ export type TransformStamped = {
   transform: Transform;
 };
 
+export type Twist = {
+  linear: Vector3;
+  angular: Vector3;
+};
+
+export type Wrench = {
+  force: Vector3;
+  torque: Vector3;
+};
+
 export type TFMessage = { transforms: TransformStamped[] };
 
 export type Marker = {
@@ -281,12 +291,66 @@ export type CompressedImage = {
   data: Uint8Array;
 };
 
+export type MultiDOFJointState = {
+  header: Header;
+  joint_names: string[];
+  transforms: Transform[];
+  twist: Twist[];
+  wrench: Wrench[];
+};
+
 export type JointState = {
   header: Header;
   name: string[];
   position: number[];
   velocity: number[];
   effort: number[];
+};
+
+export type MulitDOFJointTrajectoryPoint = {
+  transforms: Transform[];
+  velocities: Twist[];
+  accelerations: Twist[];
+  time_from_start: RosDuration;
+};
+
+export type MultiDOFJointTrajectory = {
+  header: Header;
+  joint_names: string[];
+  points: MulitDOFJointTrajectoryPoint[];
+};
+
+export type JointTrajectoryPoint = {
+  positions: number[];
+  velocities: number[];
+  accelerations: number[];
+  effort: number[];
+  time_from_start: RosDuration;
+};
+
+export type JointTrajectory = {
+  header: Header;
+  joint_names: string[];
+  points: JointTrajectoryPoint[];
+};
+
+// MoveIt 2
+export type RobotState = {
+  joint_state: JointState;
+  multi_dof_joint_state: MultiDOFJointState;
+  attached_collision_objects: object[]; // TODO: collision object type
+  is_diff: boolean;
+};
+
+export type RobotTrajectory = {
+  joint_trajectory: JointTrajectory;
+  multi_dof_joint_trajectory: MulitDOFJointTrajectoryPoint;
+};
+
+export type DisplayTrajectory = {
+  model_id: string;
+  trajectory: RobotTrajectory[];
+  trajectory_start: RobotState;
 };
 
 export const TIME_ZERO = { sec: 0, nsec: 0 };

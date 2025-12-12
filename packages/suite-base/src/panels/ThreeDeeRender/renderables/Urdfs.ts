@@ -50,6 +50,10 @@ import {
   MarkerType,
   Quaternion,
   Vector3,
+  DisplayTrajectory,
+  RobotTrajectory,
+  JointTrajectory,
+  JointTrajectoryPoint
 } from "../ros";
 import {
   BaseSettings,
@@ -100,6 +104,9 @@ export type LayerSettingsCustomUrdf = CustomLayerSettings & {
   framePrefix: string;
   displayMode: "auto" | "visual" | "collision";
   fallbackColor?: string;
+  previewEnable: boolean;
+  previewTopic: string;
+  previewIndex: number;
 };
 
 const DEFAULT_SETTINGS: LayerSettingsUrdf = {
@@ -125,8 +132,12 @@ const DEFAULT_CUSTOM_SETTINGS: LayerSettingsCustomUrdf = {
   framePrefix: "",
   displayMode: "auto",
   fallbackColor: DEFAULT_COLOR_STR,
+  previewEnable: false,
+  previewTopic: "",
+  previewIndex: 0
 };
 const URDF_TOPIC_SCHEMAS = new Set<string>(["std_msgs/String", "std_msgs/msg/String"]);
+const MOVEIT_TOPIC_SCHEMAS = new Set<string>(["moveit_msgs/DisplayTrajectory", "moveit_msgs/msg/DisplayTrajectory"])
 
 const tempVec3a = new THREE.Vector3();
 const tempVec3b = new THREE.Vector3();
@@ -141,6 +152,8 @@ export type UrdfUserData = BaseUserData & {
   sourceType: LayerSettingsCustomUrdf["sourceType"] | undefined;
   parameter: string | undefined;
   renderables: Map<string, Renderable>;
+  previewEnable: boolean;
+  previewTopic: string;
 };
 
 enum EmbeddedMaterialUsage {
@@ -228,6 +241,16 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         type: "schema",
         schemaNames: JOINTSTATE_DATATYPES,
         subscription: { handler: this.#handleJointState, filterQueue: onlyLastByTopicMessage },
+      },
+
+      {
+        type: "schema",
+        schemaNames: MOVEIT_TOPIC_SCHEMAS,
+        subscription: {
+          shouldSubscribe: this.#shouldMoveItSubscribe,
+          handler: this.#handleMoveItDisplayTrajectory,
+          filterQueue: onlyLastByTopicMessage
+        },
       },
 
       {
@@ -423,6 +446,24 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
           fallbackColor: {
             ...baseFallbackColorField,
             value: config.fallbackColor ?? DEFAULT_SETTINGS.fallbackColor,
+          },
+          previewEnable: {
+            label: "Enable preview",
+            input: "boolean",
+            value: config.previewEnable ?? DEFAULT_CUSTOM_SETTINGS.previewEnable,
+          },
+          previewTopic: {
+            label: "Topic",
+            input: "autocomplete",
+            value: config.previewTopic ?? DEFAULT_CUSTOM_SETTINGS.previewTopic,
+            items: filterMap(this.renderer.topics ?? [], (_topic) =>
+              MOVEIT_TOPIC_SCHEMAS.has(_topic.schemaName) ? _topic.name : undefined,
+            ),
+          },
+          previewIndex: {
+            label: "Progress",
+            input: "slider",
+            value: config.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.previewIndex,
           },
         };
 
@@ -653,6 +694,25 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     }
   };
 
+  #handleMoveItDisplayTrajectory = (messageEvent: PartialMessageEvent<DisplayTrajectory>): void => {
+    const msg = messageEvent.message as DisplayTrajectory;
+
+    const trajectories = msg.trajectory ?? [];
+    if (trajectories.length == 0) {
+      return;
+    }
+
+    const names = trajectories[0]?.joint_trajectory.joint_names;
+    let points: JointTrajectoryPoint[] = [];
+
+    for (const trajectory of trajectories) {
+      const jt = trajectory.joint_trajectory;
+      points = [ ...points, ...(jt.points) ];
+    }
+
+    console.log(`points: ${points.length}, joints: ${names}`);
+  };
+
   #handleRobotDescription = (messageEvent: PartialMessageEvent<{ data: string }>): void => {
     const topic = messageEvent.topic;
     const robotDescription = messageEvent.message.data;
@@ -674,6 +734,13 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     for (const instanceId of subscribedInstanceIds) {
       this.#loadUrdf({ instanceId, urdf: robotDescription });
     }
+  };
+
+  #shouldMoveItSubscribe = (topic: string): boolean => {
+    return Array.from(this.renderables.values()).some(
+      (renderable) =>
+        renderable.userData.previewEnable && renderable.userData.previewTopic === topic,
+    );
   };
 
   #shouldSubscribe = (topic: string): boolean => {
@@ -821,6 +888,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     const framePrefix = (settings as Partial<LayerSettingsCustomUrdf>).framePrefix;
     const label =
       (settings as Partial<LayerSettingsCustomUrdf>).label ?? DEFAULT_CUSTOM_SETTINGS.label;
+    const previewEnable = (settings as Partial<LayerSettingsCustomUrdf>).previewEnable ?? false;
+    const previewTopic = (settings as Partial<LayerSettingsCustomUrdf>).previewTopic ?? "";
 
     if (label !== renderable?.userData.settings.label) {
       // Label has changed, update the config
@@ -847,6 +916,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         sourceType,
         topic,
         parameter,
+        previewEnable,
+        previewTopic,
       });
       this.add(renderable);
       this.renderables.set(instanceId, renderable);
@@ -858,6 +929,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     renderable.userData.parameter = parameter;
     renderable.userData.settings = settings;
     renderable.userData.fetching = undefined;
+    renderable.userData.previewEnable = previewEnable;
+    renderable.userData.previewTopic = previewTopic;
 
     if (!urdf || forceReload) {
       renderable.removeChildren();
