@@ -51,8 +51,6 @@ import {
   Quaternion,
   Vector3,
   DisplayTrajectory,
-  RobotTrajectory,
-  JointTrajectory,
   JointTrajectoryPoint
 } from "../ros";
 import {
@@ -106,10 +104,12 @@ export type LayerSettingsCustomUrdf = CustomLayerSettings & {
   framePrefix: string;
   displayMode: "auto" | "visual" | "collision";
   fallbackColor?: string;
-  previewEnable: boolean;
-  previewTopic: string;
-  previewIndex: number;
-  previewColor: string;
+  preview: {
+    previewEnable: boolean;
+    previewTopic: string;
+    previewIndex: number;
+    previewColor: string;
+  }
 };
 
 const DEFAULT_SETTINGS: LayerSettingsUrdf = {
@@ -135,10 +135,12 @@ const DEFAULT_CUSTOM_SETTINGS: LayerSettingsCustomUrdf = {
   framePrefix: "",
   displayMode: "auto",
   fallbackColor: DEFAULT_COLOR_STR,
-  previewEnable: false,
-  previewTopic: "",
-  previewIndex: 0,
-  previewColor: "#ff000080"
+  preview: {
+    previewEnable: false,
+    previewTopic: "",
+    previewIndex: 0,
+    previewColor: "#ff000080"
+  }
 };
 const URDF_TOPIC_SCHEMAS = new Set<string>(["std_msgs/String", "std_msgs/msg/String"]);
 const MOVEIT_TOPIC_SCHEMAS = new Set<string>(["moveit_msgs/DisplayTrajectory", "moveit_msgs/msg/DisplayTrajectory"])
@@ -456,15 +458,23 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
             ...baseFallbackColorField,
             value: config.fallbackColor ?? DEFAULT_SETTINGS.fallbackColor,
           },
+        };
+
+        const previewFields: SettingsTreeFields = {
           previewEnable: {
-            label: "Enable preview",
+            label: "Enable",
             input: "boolean",
-            value: config.previewEnable ?? DEFAULT_CUSTOM_SETTINGS.previewEnable,
+            value: config.preview?.previewEnable ?? DEFAULT_CUSTOM_SETTINGS.preview.previewEnable,
+          },
+          previewColor: {
+            label: "Color",
+            input: "rgba",
+            value: config.preview?.previewColor ?? DEFAULT_CUSTOM_SETTINGS.preview.previewColor,
           },
           previewTopic: {
             label: "Topic",
             input: "autocomplete",
-            value: config.previewTopic ?? DEFAULT_CUSTOM_SETTINGS.previewTopic,
+            value: config.preview?.previewTopic ?? DEFAULT_CUSTOM_SETTINGS.preview.previewTopic,
             items: filterMap(this.renderer.topics ?? [], (_topic) =>
               MOVEIT_TOPIC_SCHEMAS.has(_topic.schemaName) ? _topic.name : undefined,
             ),
@@ -472,21 +482,17 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
           previewIndex: {
             label: "Progress",
             input: "slider",
-            value: config.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.previewIndex,
+            value: config.preview?.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewIndex,
             min: renderable?.userData.previewExtents.min ?? 0,
             max: renderable?.userData.previewExtents.max ?? 100,
-          },
-          previewColor: {
-            label: "Color",
-            input: "rgba",
-            value: config.previewColor ?? DEFAULT_CUSTOM_SETTINGS.previewColor,
+            error: (renderable?.userData.previewTrajectory.points.length) ? "" : "No display message recieved yet"
           },
         };
 
         entries.push({
           path: ["layers", instanceId],
           node: {
-            label: config.label ?? "Grid",
+            label: config.label ?? "URDF",
             icon: "PrecisionManufacturing",
             fields,
             visible: config.visible ?? DEFAULT_CUSTOM_SETTINGS.visible,
@@ -496,11 +502,18 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
             ],
             order: layerConfig.order,
             handler: this.#handleLayerSettingsAction,
-            children: urdfChildren(
-              this.#transformsByInstanceId.get(instanceId),
-              this.renderer.transformTree,
-              this.#jointStates,
-            ),
+            children: {
+              preview: {
+                label: "MoveIt 2 Preview",
+                defaultExpansionState: "collapsed",
+                fields: previewFields,
+              },
+              ...(urdfChildren(
+                this.#transformsByInstanceId.get(instanceId),
+                this.renderer.transformTree,
+                this.#jointStates,
+              )),
+            }
           },
         });
       }
@@ -670,12 +683,40 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
   #handleSettingsUpdate = (action: { action: "update" } & SettingsTreeAction): void => {
     const path = action.payload.path;
 
+    console.log(path);
+
     if (path.length === 5 && path[2] === "joints") {
       // ["layers", instanceId, "joints", jointName, "manual"]
       const instanceId = path[1]!;
       const jointName = path[3]!;
 
       this.#setJoint(instanceId, jointName, action.payload.value as number);
+    } else if (path.length === 4 && path[2] === "preview") {
+      // ["layers", instanceId, "preview", field]
+      this.saveSetting(path, action.payload.value);
+      const [_layers, instanceId, _preview, field] = path as [string, string, string, string];
+      const renderable = this.renderables.get(instanceId);
+      let urdf = renderable?.userData.urdf;
+
+      if (field === "previewEnable") {
+        this.#loadUrdf({ instanceId, urdf, forceReload: true });
+      } else if (field === "previewColor") {
+        this.#loadUrdf({ instanceId, urdf, forceReload: true });
+      } else if (field == "previewIndex") {
+        const instanceId = path[1]!;
+        const names = renderable?.userData.previewTrajectory.names;
+        const point = renderable?.userData.previewTrajectory.points[action.payload.value as number]!;
+
+        if (names == undefined || point == undefined) {
+          return;
+        }
+
+        for (let i = 0; i < names.length; i++) {
+          this.#setJoint(instanceId, PV_PREFIX + names[i]!, point.positions[i]! * RAD2DEG);
+        }
+      } else {
+        this.#loadUrdf({ instanceId, urdf });
+      }
     } else if (path.length === 3) {
       // ["layers", instanceId, field]
       this.saveSetting(path, action.payload.value);
@@ -709,21 +750,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       } else if (field === "topic") {
         urdf = this.#urdfsByTopic.get(action.payload.value as string);
         this.#loadUrdf({ instanceId, urdf });
-      } else if (field === "previewEnable") {
-        this.#loadUrdf({ instanceId, urdf, forceReload: true });
-      } else if (field == "previewIndex") {
-        const instanceId = path[1]!;
-        const names = renderable?.userData.previewTrajectory.names;
-        const point = renderable?.userData.previewTrajectory.points[action.payload.value as number]!;
-
-        if (names == undefined || point == undefined) {
-          return;
-        }
-
-        for (let i = 0; i < names.length; i++) {
-          this.#setJoint(instanceId, PV_PREFIX + names[i]!, point.positions[i]! * RAD2DEG);
-        }
-
       } else {
         this.#loadUrdf({ instanceId, urdf });
       }
@@ -747,7 +773,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       points = [ ...points, ...(jt.points) ];
     }
 
-    const subscribedRenderables = filterMap(this.renderables, ([instanceId, renderable]) =>
+    const subscribedRenderables = filterMap(this.renderables, ([_instanceId, renderable]) =>
       renderable.userData.previewEnable && renderable.userData.previewTopic === topic
         ? renderable
         : undefined,
@@ -756,6 +782,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     for (const renderable of subscribedRenderables) {
       renderable.userData.previewTrajectory = { names, points };
       renderable.userData.previewExtents = { min: 0, max: points.length };
+      this.updateSettingsTree();
     }
   };
 
@@ -934,9 +961,9 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     const framePrefix = (settings as Partial<LayerSettingsCustomUrdf>).framePrefix;
     const label =
       (settings as Partial<LayerSettingsCustomUrdf>).label ?? DEFAULT_CUSTOM_SETTINGS.label;
-    const previewEnable = (settings as Partial<LayerSettingsCustomUrdf>).previewEnable ?? false;
-    const previewTopic = (settings as Partial<LayerSettingsCustomUrdf>).previewTopic ?? "";
-    const previewColor = (settings as Partial<LayerSettingsCustomUrdf>).previewColor ?? DEFAULT_CUSTOM_SETTINGS.previewColor;
+    const previewEnable = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewEnable ?? false;
+    const previewTopic = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewTopic ?? "";
+    const previewColor = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewColor ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewColor;
 
     if (label !== renderable?.userData.settings.label) {
       // Label has changed, update the config
