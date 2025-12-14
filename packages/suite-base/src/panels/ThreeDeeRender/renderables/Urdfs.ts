@@ -87,6 +87,8 @@ const VEC3_ONE = { x: 1, y: 1, z: 1 };
 const XYZ_LABEL: [string, string, string] = ["X", "Y", "Z"];
 const RPY_LABEL: [string, string, string] = ["R", "P", "Y"];
 
+const PV_PREFIX = "pv_"
+
 export type LayerSettingsUrdf = BaseSettings & {
   instanceId: string; // This will be set to the topic name
   displayMode: "auto" | "visual" | "collision";
@@ -627,8 +629,11 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       return;
     }
 
+    console.log(transforms);
+
     const transformData = transforms.find((t) => t.joint.name === jointName);
     if (!transformData) {
+      console.log(`could not find tf data for ${jointName}`);
       return;
     }
 
@@ -707,7 +712,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         console.log(point);
 
         for (let i = 0; i < names.length; i++) {
-          this.#setJoint(instanceId, names[i]!, point.positions[i]! * RAD2DEG);
+          this.#setJoint(instanceId, PV_PREFIX + names[i]!, point.positions[i]! * RAD2DEG);
         }
 
       } else {
@@ -1076,12 +1081,14 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       if (renderVisual) {
         for (let i = 0; i < link.visuals.length; i++) {
           createChild(frameId, i, link.visuals[i]!);
+          createChild(PV_PREFIX + frameId, i, link.visuals[i]!);
         }
       }
 
       if (renderCollision) {
         for (let i = 0; i < link.colliders.length; i++) {
           createChild(frameId, i, link.colliders[i]!);
+          createChild(PV_PREFIX + frameId, i, link.colliders[i]!);
         }
       }
     }
@@ -1093,6 +1100,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     // Import all coordinate frames from the URDF into the scene
     for (const frameId of frames) {
       this.renderer.addCoordinateFrame(frameId);
+      console.log(`add frame: ${frameId}`);
     }
   }
 
@@ -1104,6 +1112,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     const settingsPath = isTopicOrParam ? ["topics", instanceId] : ["layers", instanceId];
     for (const { parent, child, translation, rotation } of transforms) {
       this.renderer.addTransform(parent, child, 0n, translation, rotation, settingsPath);
+      console.log(`add frame: ${parent} -> ${child}`);
     }
   }
 
@@ -1161,7 +1170,34 @@ async function parseUrdf(
       return transform;
     });
 
-    return { robot, frames, transforms };
+    // Frames that are actually part of the URDF, i.e. everything from the base link down
+    const frameToPvFrame = Object.fromEntries(
+      transforms.map(tfData => [ tfData.child, PV_PREFIX + tfData.child ])
+    );
+
+    const urdfTransforms = Array.from(robot.joints.values(), (urdfJoint) => {
+      let joint = { ...urdfJoint, name: PV_PREFIX + urdfJoint.name };
+
+      const translation = joint.origin.xyz;
+      const rotation = eulerToQuaternion(joint.origin.rpy);
+
+      const parent = frameToPvFrame[joint.parent] ?? joint.parent;
+      const child  = frameToPvFrame[joint.child] ?? joint.child;
+
+      const transform: TransformData = {
+        parent: parent,
+        child: child,
+        translation,
+        rotation,
+        joint,
+      };
+      return transform;
+    });
+
+    console.log(Object.values(frameToPvFrame));
+    console.log(urdfTransforms);
+
+    return { robot, frames: [ ...frames, ...Object.values(frameToPvFrame)], transforms: [ ...transforms, ...urdfTransforms ] };
   } catch (err: unknown) {
     throw new Error(`Failed to parse ${text.length} byte URDF: ${err}`);
   }
