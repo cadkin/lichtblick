@@ -109,6 +109,7 @@ export type LayerSettingsCustomUrdf = CustomLayerSettings & {
   previewEnable: boolean;
   previewTopic: string;
   previewIndex: number;
+  previewColor: string;
 };
 
 const DEFAULT_SETTINGS: LayerSettingsUrdf = {
@@ -136,7 +137,8 @@ const DEFAULT_CUSTOM_SETTINGS: LayerSettingsCustomUrdf = {
   fallbackColor: DEFAULT_COLOR_STR,
   previewEnable: false,
   previewTopic: "",
-  previewIndex: 0
+  previewIndex: 0,
+  previewColor: "#ff000080"
 };
 const URDF_TOPIC_SCHEMAS = new Set<string>(["std_msgs/String", "std_msgs/msg/String"]);
 const MOVEIT_TOPIC_SCHEMAS = new Set<string>(["moveit_msgs/DisplayTrajectory", "moveit_msgs/msg/DisplayTrajectory"])
@@ -157,6 +159,7 @@ export type UrdfUserData = BaseUserData & {
   previewEnable: boolean;
   previewTopic: string;
   previewTrajectory: { names: string[], points: JointTrajectoryPoint[] };
+  previewColor: string;
 };
 
 enum EmbeddedMaterialUsage {
@@ -291,7 +294,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     const baseFallbackColorField: SettingsTreeField = {
       label: "Color",
       help: "Fallback color used in case a link does not specify any color itself",
-      input: "rgb",
+      input: "rgba",
     };
 
     // /robot_description topic entry
@@ -468,6 +471,11 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
             input: "slider",
             value: config.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.previewIndex,
           },
+          previewColor: {
+            label: "Color",
+            input: "rgba",
+            value: config.previewColor ?? DEFAULT_CUSTOM_SETTINGS.previewColor,
+          },
         };
 
         entries.push({
@@ -629,11 +637,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       return;
     }
 
-    console.log(transforms);
-
     const transformData = transforms.find((t) => t.joint.name === jointName);
     if (!transformData) {
-      console.log(`could not find tf data for ${jointName}`);
       return;
     }
 
@@ -676,11 +681,12 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       if (field === "url" || field === "filePath") {
         this.#debouncedLoadUrdf({ instanceId, urdf: undefined });
       } else if (field === "parameter") {
+        renderable.userData.previewColor = previewColor;
         urdf = this.renderer.parameters?.get(action.payload.value as string) as string | undefined;
         this.#debouncedLoadUrdf({ instanceId, urdf, forceReload: true });
       } else if (field === "framePrefix") {
         this.#debouncedLoadUrdf({ instanceId, urdf, forceReload: true });
-      } else if (field === "displayMode" || field === "visible" || field === "fallbackColor") {
+      } else if (field === "displayMode" || field === "visible" || field === "fallbackColor" || field === "previewColor") {
         this.#loadUrdf({ instanceId, urdf, forceReload: true });
       } else if (field === "sourceType") {
         const sourceType = action.payload.value as LayerSettingsCustomUrdf["sourceType"];
@@ -708,9 +714,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
           return;
         }
 
-        console.log(names);
-        console.log(point);
-
         for (let i = 0; i < names.length; i++) {
           this.#setJoint(instanceId, PV_PREFIX + names[i]!, point.positions[i]! * RAD2DEG);
         }
@@ -737,8 +740,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       const jt = trajectory.joint_trajectory;
       points = [ ...points, ...(jt.points) ];
     }
-
-    console.log(`points: ${points.length}, joints: ${names}`);
 
     const subscribedRenderables = filterMap(this.renderables, ([instanceId, renderable]) =>
       renderable.userData.previewEnable && renderable.userData.previewTopic === topic
@@ -928,6 +929,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       (settings as Partial<LayerSettingsCustomUrdf>).label ?? DEFAULT_CUSTOM_SETTINGS.label;
     const previewEnable = (settings as Partial<LayerSettingsCustomUrdf>).previewEnable ?? false;
     const previewTopic = (settings as Partial<LayerSettingsCustomUrdf>).previewTopic ?? "";
+    const previewColor = (settings as Partial<LayerSettingsCustomUrdf>).previewColor ?? DEFAULT_CUSTOM_SETTINGS.previewColor;
 
     if (label !== renderable?.userData.settings.label) {
       // Label has changed, update the config
@@ -956,7 +958,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         parameter,
         previewEnable,
         previewTopic,
-        previewTrajectory: { names: [], points: [] }
+        previewTrajectory: { names: [], points: [] },
+        previewColor
       });
       this.add(renderable);
       this.renderables.set(instanceId, renderable);
@@ -970,6 +973,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     renderable.userData.fetching = undefined;
     renderable.userData.previewEnable = previewEnable;
     renderable.userData.previewTopic = previewTopic;
+    renderable.userData.previewColor = previewColor;
 
     if (!urdf || forceReload) {
       renderable.removeChildren();
@@ -1047,6 +1051,9 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     const fallbackColor = settings.fallbackColor
       ? stringToRgba(makeRgba(), settings.fallbackColor)
       : undefined;
+    const previewColor = renderable.userData.previewColor
+      ? stringToRgba(makeRgba(), renderable.userData.previewColor)
+      : undefined;
 
     this.#loadFrames(instanceId, frames);
     this.#loadTransforms(instanceId, transforms);
@@ -1055,7 +1062,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     // Dispose any existing renderables
     renderable.removeChildren();
 
-    const createChild = (frameId: string, i: number, visual: UrdfVisual): void => {
+    const createChild = (frameId: string, i: number, visual: UrdfVisual, preview: boolean): void => {
       const childRenderable = createRenderable({
         visual,
         robot,
@@ -1064,6 +1071,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         renderer,
         baseUrl,
         fallbackColor,
+        previewColor,
+        preview
       });
       // Set the childRenderable settingsPath so errors route to the correct place
       childRenderable.userData.settingsPath = renderable.userData.settingsPath;
@@ -1080,15 +1089,15 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
 
       if (renderVisual) {
         for (let i = 0; i < link.visuals.length; i++) {
-          createChild(frameId, i, link.visuals[i]!);
-          createChild(PV_PREFIX + frameId, i, link.visuals[i]!);
+          createChild(frameId, i, link.visuals[i]!, false);
+          createChild(PV_PREFIX + frameId, i, link.visuals[i]!, true);
         }
       }
 
       if (renderCollision) {
         for (let i = 0; i < link.colliders.length; i++) {
-          createChild(frameId, i, link.colliders[i]!);
-          createChild(PV_PREFIX + frameId, i, link.colliders[i]!);
+          createChild(frameId, i, link.colliders[i]!, false);
+          createChild(PV_PREFIX + frameId, i, link.colliders[i]!, true);
         }
       }
     }
@@ -1100,7 +1109,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     // Import all coordinate frames from the URDF into the scene
     for (const frameId of frames) {
       this.renderer.addCoordinateFrame(frameId);
-      console.log(`add frame: ${frameId}`);
     }
   }
 
@@ -1112,7 +1120,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
     const settingsPath = isTopicOrParam ? ["topics", instanceId] : ["layers", instanceId];
     for (const { parent, child, translation, rotation } of transforms) {
       this.renderer.addTransform(parent, child, 0n, translation, rotation, settingsPath);
-      console.log(`add frame: ${parent} -> ${child}`);
     }
   }
 
@@ -1194,9 +1201,6 @@ async function parseUrdf(
       return transform;
     });
 
-    console.log(Object.values(frameToPvFrame));
-    console.log(urdfTransforms);
-
     return { robot, frames: [ ...frames, ...Object.values(frameToPvFrame)], transforms: [ ...transforms, ...urdfTransforms ] };
   } catch (err: unknown) {
     throw new Error(`Failed to parse ${text.length} byte URDF: ${err}`);
@@ -1211,12 +1215,27 @@ function createRenderable(args: {
   renderer: IRenderer;
   baseUrl?: string;
   fallbackColor?: ColorRGBA;
+  previewColor?: ColorRGBA;
+  preview: boolean;
 }): Renderable {
-  const { visual, robot, id, frameId, renderer, baseUrl, fallbackColor } = args;
+  const {
+    visual,
+    robot,
+    id,
+    frameId,
+    renderer,
+    baseUrl,
+    fallbackColor,
+    previewColor,
+    preview
+  } = args;
+
   const name = `${frameId}-${id}-${visual.geometry.geometryType}`;
   const orientation = eulerToQuaternion(visual.origin.rpy);
   const pose = { position: visual.origin.xyz, orientation };
-  const color = getColor(visual, robot) ?? fallbackColor ?? DEFAULT_COLOR;
+  const color = preview ?
+    previewColor ?? fallbackColor ?? DEFAULT_COLOR
+    : getColor(visual, robot) ?? fallbackColor ?? DEFAULT_COLOR;
   const type = visual.geometry.geometryType;
   switch (type) {
     case "box": {
@@ -1239,7 +1258,7 @@ function createRenderable(args: {
     case "mesh": {
       const isCollada = visual.geometry.filename.toLowerCase().endsWith(".dae");
       // Use embedded materials if the mesh is a Collada file
-      const embedded = isCollada ? EmbeddedMaterialUsage.Use : EmbeddedMaterialUsage.Ignore;
+      const embedded = (isCollada && !preview) ? EmbeddedMaterialUsage.Use : EmbeddedMaterialUsage.Ignore;
       const marker = createMeshMarker(frameId, pose, embedded, visual.geometry, baseUrl, color);
       return new RenderableMeshResource(name, marker, undefined, renderer, {
         referenceUrl: baseUrl,
