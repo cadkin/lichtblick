@@ -160,6 +160,7 @@ export type UrdfUserData = BaseUserData & {
   previewTopic: string;
   previewTrajectory: { names: string[], points: JointTrajectoryPoint[] };
   previewColor: string;
+  previewExtents: { min: number, max: number };
 };
 
 enum EmbeddedMaterialUsage {
@@ -366,6 +367,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       if (layerConfig?.layerId === LAYER_ID) {
         const config = layerConfig as Partial<LayerSettingsCustomUrdf>;
 
+        const renderable = this.renderables.get(instanceId);
+
         const fields: SettingsTreeFields = {
           sourceType: {
             label: "Source",
@@ -470,6 +473,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
             label: "Progress",
             input: "slider",
             value: config.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.previewIndex,
+            min: renderable?.userData.previewExtents.min ?? 0,
+            max: renderable?.userData.previewExtents.max ?? 100,
           },
           previewColor: {
             label: "Color",
@@ -681,7 +686,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       if (field === "url" || field === "filePath") {
         this.#debouncedLoadUrdf({ instanceId, urdf: undefined });
       } else if (field === "parameter") {
-        renderable.userData.previewColor = previewColor;
         urdf = this.renderer.parameters?.get(action.payload.value as string) as string | undefined;
         this.#debouncedLoadUrdf({ instanceId, urdf, forceReload: true });
       } else if (field === "framePrefix") {
@@ -705,6 +709,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       } else if (field === "topic") {
         urdf = this.#urdfsByTopic.get(action.payload.value as string);
         this.#loadUrdf({ instanceId, urdf });
+      } else if (field === "previewEnable") {
+        this.#loadUrdf({ instanceId, urdf, forceReload: true });
       } else if (field == "previewIndex") {
         const instanceId = path[1]!;
         const names = renderable?.userData.previewTrajectory.names;
@@ -749,6 +755,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
 
     for (const renderable of subscribedRenderables) {
       renderable.userData.previewTrajectory = { names, points };
+      renderable.userData.previewExtents = { min: 0, max: points.length };
     }
   };
 
@@ -959,6 +966,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         previewEnable,
         previewTopic,
         previewTrajectory: { names: [], points: [] },
+        previewExtents: { min: 0, max: 100 },
         previewColor
       });
       this.add(renderable);
@@ -1015,7 +1023,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
 
     // Parse the URDF
     const loadedRenderable = renderable;
-    parseUrdf(urdf, async (uri) => await this.#getFileFetch(uri, baseUrl), framePrefix)
+    parseUrdf(urdf, async (uri) => await this.#getFileFetch(uri, baseUrl), framePrefix, previewEnable)
       .then((parsed) => {
         this.#loadRobot(loadedRenderable, parsed, baseUrl);
         this.renderer.settings.errors.remove(
@@ -1055,6 +1063,8 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       ? stringToRgba(makeRgba(), renderable.userData.previewColor)
       : undefined;
 
+    const previewEnable = renderable.userData.previewEnable ?? false;
+
     this.#loadFrames(instanceId, frames);
     this.#loadTransforms(instanceId, transforms);
     this.updateSettingsTree();
@@ -1090,14 +1100,18 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       if (renderVisual) {
         for (let i = 0; i < link.visuals.length; i++) {
           createChild(frameId, i, link.visuals[i]!, false);
-          createChild(PV_PREFIX + frameId, i, link.visuals[i]!, true);
+          if (previewEnable) {
+            createChild(PV_PREFIX + frameId, i, link.visuals[i]!, true);
+          }
         }
       }
 
       if (renderCollision) {
         for (let i = 0; i < link.colliders.length; i++) {
           createChild(frameId, i, link.colliders[i]!, false);
-          createChild(PV_PREFIX + frameId, i, link.colliders[i]!, true);
+          if (previewEnable) {
+            createChild(PV_PREFIX + frameId, i, link.colliders[i]!, true);
+          }
         }
       }
     }
@@ -1138,6 +1152,7 @@ async function parseUrdf(
   text: string,
   getFileContents: (url: string) => Promise<string>,
   framePrefix?: string,
+  showPreview?: boolean
 ): Promise<ParsedUrdf> {
   const applyFramePrefix = (name: string) => `${framePrefix}${name}`;
   try {
@@ -1163,8 +1178,8 @@ async function parseUrdf(
       );
     }
 
-    const frames = Array.from(robot.links.values(), (link) => link.name);
-    const transforms = Array.from(robot.joints.values(), (joint) => {
+    const realFrames = Array.from(robot.links.values(), (link) => link.name);
+    const realTransforms = Array.from(robot.joints.values(), (joint) => {
       const translation = joint.origin.xyz;
       const rotation = eulerToQuaternion(joint.origin.rpy);
       const transform: TransformData = {
@@ -1179,7 +1194,7 @@ async function parseUrdf(
 
     // Frames that are actually part of the URDF, i.e. everything from the base link down
     const frameToPvFrame = Object.fromEntries(
-      transforms.map(tfData => [ tfData.child, PV_PREFIX + tfData.child ])
+      realTransforms.map(tfData => [ tfData.child, PV_PREFIX + tfData.child ])
     );
 
     const urdfTransforms = Array.from(robot.joints.values(), (urdfJoint) => {
@@ -1201,7 +1216,17 @@ async function parseUrdf(
       return transform;
     });
 
-    return { robot, frames: [ ...frames, ...Object.values(frameToPvFrame)], transforms: [ ...transforms, ...urdfTransforms ] };
+    const frames = [
+      ...realFrames,
+      ...(showPreview ? Object.values(frameToPvFrame) : [])
+    ];
+
+    const transforms = [
+      ...realTransforms,
+      ...(showPreview ? urdfTransforms : [])
+    ];
+
+    return { robot, frames, transforms };
   } catch (err: unknown) {
     throw new Error(`Failed to parse ${text.length} byte URDF: ${err}`);
   }
