@@ -28,6 +28,7 @@ import MessagePathInput from "@lichtblick/suite-base/components/MessagePathSynta
 import { useStyles } from "@lichtblick/suite-base/components/SettingsTreeEditor/FieldEditor.style";
 import { LegendControls } from "@lichtblick/suite-base/components/SettingsTreeEditor/inputs/LegendControls";
 import { FieldEditorProps } from "@lichtblick/suite-base/components/SettingsTreeEditor/types";
+import { Timeline } from "@lichtblick/suite-base/components/SettingsTreeEditor/inputs/Timeline"
 import Stack from "@lichtblick/suite-base/components/Stack";
 import { useAppContext } from "@lichtblick/suite-base/context/AppContext";
 
@@ -354,6 +355,22 @@ function FieldInput({
       );
     case "legendcontrols":
       return <LegendControls />;
+    case "timeline":
+      return (
+        <Timeline
+          value={field.value}
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          playbackSpeed={field.playbackSpeed}
+          onChange={(value) => {
+            actionHandler({
+              action: "update",
+              payload: { path, input: "timeline", value },
+            });
+          }}
+        />
+      );
     case "slider":
       return (
         <Slider

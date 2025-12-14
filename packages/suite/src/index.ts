@@ -759,6 +759,15 @@ export type SettingsTreeFieldSlider = {
   step?: number;
 };
 
+export type SettingsTreeFieldTimeline = {
+  input: "timeline";
+  value?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  playbackSpeed?: number;
+};
+
 export type SettingsTreeFieldVec3 = {
   input: "vec3";
   value?: [undefined | number, undefined | number, undefined | number];
@@ -800,6 +809,7 @@ export type SettingsTreeFieldValue =
   | SettingsTreeFieldToggleString
   | SettingsTreeFieldToggleNumber
   | SettingsTreeFieldSlider
+  | SettingsTreeFieldTimeline
   | SettingsTreeFieldVec3
   | SettingsTreeFieldVec2
   | SettingsTreeFieldLegendControl;

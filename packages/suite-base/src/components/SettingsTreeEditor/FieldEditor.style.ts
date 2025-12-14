@@ -72,6 +72,36 @@ export const useStyles = makeStyles<void, "error">()((theme, _params, classes) =
       },
     },
   },
+  playButton: {
+    padding: "2px",
+    display: "flex",
+    color: theme.palette.secondary.main,
+    background: theme.palette.action.hover,
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14pt",
+    borderRadius: theme.shape.borderRadius,
+    width: "30px",
+    border: "none",
+    outline: "none",
+
+    "&:hover": {
+      backgroundColor: theme.palette.action.active,
+    },
+  },
+  playSlider: {
+    color: theme.palette.secondary.main,
+    top: "2px",
+    height: 3,
+    width: "calc(100% - 55px)",
+    left: "10px",
+
+    "& .MuiSlider-thumb": {
+      "&:focus, &:hover, &.Mui-active, &.Mui-focusVisible": {
+        boxShadow: "none",
+      },
+    },
+  },
   slider: {
     color: theme.palette.secondary.main,
     top: "2px",
