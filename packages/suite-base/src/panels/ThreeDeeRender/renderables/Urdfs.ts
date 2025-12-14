@@ -683,8 +683,6 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
   #handleSettingsUpdate = (action: { action: "update" } & SettingsTreeAction): void => {
     const path = action.payload.path;
 
-    console.log(path);
-
     if (path.length === 5 && path[2] === "joints") {
       // ["layers", instanceId, "joints", jointName, "manual"]
       const instanceId = path[1]!;
@@ -773,15 +771,28 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       points = [ ...points, ...(jt.points) ];
     }
 
-    const subscribedRenderables = filterMap(this.renderables, ([_instanceId, renderable]) =>
-      renderable.userData.previewEnable && renderable.userData.previewTopic === topic
+    const subscribedRenderables = filterMap(this.renderables, ([instanceId, renderable]) => {
+      const targetRenderable = renderable.userData.previewEnable && renderable.userData.previewTopic === topic
         ? renderable
-        : undefined,
-    );
+        : undefined
+
+      if (targetRenderable?.userData.previewTrajectory.points.length) {
+        const point = points[0]!;
+
+        if (names != undefined && point != undefined) {
+          for (let i = 0; i < names.length; i++) {
+            this.#setJoint(instanceId, PV_PREFIX + names[i]!, point.positions[i]! * RAD2DEG);
+          }
+        }
+      }
+
+      return targetRenderable;
+    });
 
     for (const renderable of subscribedRenderables) {
       renderable.userData.previewTrajectory = { names, points };
       renderable.userData.previewExtents = { min: 0, max: points.length };
+
       this.updateSettingsTree();
     }
   };
@@ -963,6 +974,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
       (settings as Partial<LayerSettingsCustomUrdf>).label ?? DEFAULT_CUSTOM_SETTINGS.label;
     const previewEnable = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewEnable ?? false;
     const previewTopic = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewTopic ?? "";
+    const previewIndex = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewIndex ?? 0;
     const previewColor = (settings as Partial<LayerSettingsCustomUrdf>).preview?.previewColor ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewColor;
 
     if (label !== renderable?.userData.settings.label) {
@@ -1060,6 +1072,18 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
         // the frame from the settings update is called before the robot is loaded
         // need to queue another animation frame after robot has been loaded
         this.renderer.queueAnimationFrame();
+      })
+      .then((_: any) => {
+        if (previewEnable && renderable?.userData.previewTrajectory.points.length) {
+          const names = renderable?.userData.previewTrajectory.names;
+          const point = renderable?.userData.previewTrajectory.points[previewIndex]!;
+
+          if (names != undefined && point != undefined) {
+            for (let i = 0; i < names.length; i++) {
+              this.#setJoint(instanceId, PV_PREFIX + names[i]!, point.positions[i]! * RAD2DEG);
+            }
+          }
+        }
       })
       .catch((e: unknown) => {
         const err = e as Error;
