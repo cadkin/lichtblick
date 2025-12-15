@@ -93,7 +93,7 @@ export const useStyles = makeStyles<void, "error">()((theme, _params, classes) =
     color: theme.palette.secondary.main,
     top: "2px",
     height: 3,
-    width: "calc(100% - 55px)",
+    width: "calc(100% - 65px)",
     left: "10px",
 
     '& .MuiSlider-thumb': {
