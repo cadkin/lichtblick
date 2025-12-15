@@ -109,6 +109,7 @@ export type LayerSettingsCustomUrdf = CustomLayerSettings & {
     previewTopic: string;
     previewIndex: number;
     previewColor: string;
+    previewSpeed: number;
   }
 };
 
@@ -139,7 +140,8 @@ const DEFAULT_CUSTOM_SETTINGS: LayerSettingsCustomUrdf = {
     previewEnable: false,
     previewTopic: "",
     previewIndex: 0,
-    previewColor: "#ff000080"
+    previewColor: "#ff000080",
+    previewSpeed: 25,
   }
 };
 const URDF_TOPIC_SCHEMAS = new Set<string>(["std_msgs/String", "std_msgs/msg/String"]);
@@ -479,13 +481,22 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
               MOVEIT_TOPIC_SCHEMAS.has(_topic.schemaName) ? _topic.name : undefined,
             ),
           },
+          previewSpeed: {
+            label: "Speed",
+            input: "number",
+            value: config.preview?.previewSpeed ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewSpeed,
+            min: 0,
+            max: 1000,
+            step: 0.5,
+            precision: 2,
+          },
           previewIndex: {
             label: "Playback",
             input: "timeline",
             value: config.preview?.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewIndex,
             min: renderable?.userData.previewExtents.min ?? 0,
             max: renderable?.userData.previewExtents.max ?? 100,
-            playbackSpeed: 25,
+            playbackSpeed: config.preview?.previewSpeed ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewSpeed,
             error: (renderable?.userData.previewTrajectory.points.length) ? "" : "No display message recieved yet"
           },
         };

@@ -96,10 +96,15 @@ export const useStyles = makeStyles<void, "error">()((theme, _params, classes) =
     width: "calc(100% - 55px)",
     left: "10px",
 
-    "& .MuiSlider-thumb": {
-      "&:focus, &:hover, &.Mui-active, &.Mui-focusVisible": {
-        boxShadow: "none",
-      },
+    '& .MuiSlider-thumb': {
+      boxShadow: "none",
+      transition: 'none !important',
+    },
+    '& .MuiSlider-track': {
+      transition: 'none !important',
+    },
+    '& .MuiSlider-rail': {
+        transition: 'none !important',
     },
   },
   slider: {
