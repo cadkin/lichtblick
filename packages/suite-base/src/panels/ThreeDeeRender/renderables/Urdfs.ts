@@ -485,7 +485,7 @@ export class Urdfs extends SceneExtension<UrdfRenderable> {
             value: config.preview?.previewIndex ?? DEFAULT_CUSTOM_SETTINGS.preview?.previewIndex,
             min: renderable?.userData.previewExtents.min ?? 0,
             max: renderable?.userData.previewExtents.max ?? 100,
-            playbackSpeed: 10, // 10x
+            playbackSpeed: 25,
             error: (renderable?.userData.previewTrajectory.points.length) ? "" : "No display message recieved yet"
           },
         };

@@ -1,6 +1,5 @@
 import { Slider } from "@mui/material";
-import { useCallback, MouseEvent, useState, useEffect } from "react";
-import { makeStyles } from "tss-react/mui";
+import { useState, useEffect } from "react";
 
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
 import PauseCircleIcon from '@mui/icons-material/PauseCircle';
@@ -17,7 +16,7 @@ type TimelineProps = {
 };
 
 export function Timeline(props: TimelineProps): React.JSX.Element {
-  const { classes, cx } = useStyles();
+  const { classes } = useStyles();
 
   const [value, setValue] = useState(props.value ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -26,6 +25,10 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   useEffect(() => {
     if (isPlaying) {
+      if (value > (props.max ?? 100)) {
+        setValue(0);
+      };
+
       intervalRef = setInterval(() => {
         setValue(prev => prev + (props.step ?? 1));
       }, 1000 / (props.playbackSpeed ?? 1))
@@ -41,6 +44,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   }, [isPlaying]);
 
   useEffect(() => {
+    if (value > (props.max ?? 100)) {
+      togglePlay();
+    };
     props.onChange(value);
   }, [value]);
 
