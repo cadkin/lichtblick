@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (C) 2023-2025 Bayerische Motoren Werke Aktiengesellschaft (BMW AG)<lichtblick@bmwgroup.com>
+// SPDX-FileCopyrightText: Copyright (C) 2023-2026 Bayerische Motoren Werke Aktiengesellschaft (BMW AG)<lichtblick@bmwgroup.com>
 // SPDX-License-Identifier: MPL-2.0
 
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -368,7 +368,7 @@ function initRenderStateBuilder(): BuildRenderStateFn {
       updateRenderStateField("appSettings", appSettings, renderState.appSettings, shouldRender);
     }
 
-    if (forceConversion?.size) {
+    if (forceConversion.size > 0) {
       const postProcessedFrame: MessageEvent[] = [];
 
       for (const topic of forceConversion) {
@@ -376,7 +376,7 @@ function initRenderStateBuilder(): BuildRenderStateFn {
 
         if (messageEvent == undefined) {
           continue;
-        };
+        }
 
         convertMessage(
           { ...messageEvent, topicConfig: configTopics[topic] },

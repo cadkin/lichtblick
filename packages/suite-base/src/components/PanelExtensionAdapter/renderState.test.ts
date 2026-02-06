@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (C) 2023-2025 Bayerische Motoren Werke Aktiengesellschaft (BMW AG)<lichtblick@bmwgroup.com>
+// SPDX-FileCopyrightText: Copyright (C) 2023-2026 Bayerische Motoren Werke Aktiengesellschaft (BMW AG)<lichtblick@bmwgroup.com>
 // SPDX-License-Identifier: MPL-2.0
 
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -82,6 +82,7 @@ function makeInitialState(): BuilderRenderStateInput {
         },
       },
     ],
+    forceConversion: new Set(),
   };
 }
 const setup = (inputOverride: Partial<BuilderRenderStateInput> = {}) => {
@@ -98,6 +99,7 @@ const setup = (inputOverride: Partial<BuilderRenderStateInput> = {}) => {
     sortedTopics: [],
     subscriptions: [],
     ...inputOverride,
+    forceConversion: new Set(),
   };
 
   return {
@@ -192,6 +194,7 @@ describe("renderState", () => {
       sortedTopics: [{ name: "test", schemaName: "schema" }],
       subscriptions: [{ topic: "test", convertTo: "schema" }],
       sortedServices: [],
+      forceConversion: new Set(),
     };
     const firstRenderState = buildRenderState(initialState);
     expect(firstRenderState).toEqual({
@@ -237,6 +240,7 @@ describe("renderState", () => {
       sortedTopics: [{ name: "test", schemaName: "schema" }],
       subscriptions: [{ topic: "test", convertTo: "schema" }],
       messageConverters: [],
+      forceConversion: new Set(),
     });
 
     expect(state).toEqual({
@@ -285,6 +289,7 @@ describe("renderState", () => {
       ],
       subscriptions: [{ topic: "test", convertTo: "schema" }],
       messageConverters: [],
+      forceConversion: new Set(),
     });
 
     expect(state).toEqual({
@@ -349,6 +354,7 @@ describe("renderState", () => {
         { topic: "test2", preload: true },
       ],
       messageConverters: [],
+      forceConversion: new Set(),
     });
 
     expect(state).toEqual({
@@ -428,6 +434,7 @@ describe("renderState", () => {
           },
         },
       ],
+      forceConversion: new Set(),
     });
 
     expect(state).toEqual({
@@ -521,6 +528,7 @@ describe("renderState", () => {
           converter: converter2,
         },
       ],
+      forceConversion: new Set(),
     });
 
     expect(state).toMatchObject({
@@ -629,6 +637,7 @@ describe("renderState", () => {
           },
         },
       ],
+      forceConversion: new Set(),
     });
 
     expect(state).toEqual({
@@ -773,6 +782,7 @@ describe("renderState", () => {
           converter: () => undefined,
         },
       ],
+      forceConversion: new Set(),
     });
 
     expect(state).toEqual({
@@ -793,6 +803,76 @@ describe("renderState", () => {
           schemaName: "schema",
           sizeInBytes: 1,
           topic: "test",
+        },
+      ],
+    });
+  });
+
+  it("should force conversion of the latest message when requested", () => {
+    const buildRenderState = initRenderStateBuilder();
+    const converter = jest.fn((msg, event) => ({
+      converted: event.topicConfig?.flag ?? "default",
+      original: msg,
+    }));
+
+    const baseInput: BuilderRenderStateInput = {
+      watchedFields: new Set(["currentFrame"]),
+      playerState: undefined,
+      appSettings: undefined,
+      currentFrame: [
+        {
+          topic: "test",
+          schemaName: "schema",
+          receiveTime: { sec: 0, nsec: 0 },
+          sizeInBytes: 1,
+          message: { from: "currentFrame" },
+        },
+      ],
+      colorScheme: undefined,
+      globalVariables: {},
+      hoverValue: undefined,
+      sharedPanelState: {},
+      sortedTopics: [{ name: "test", schemaName: "schema" }],
+      subscriptions: [{ topic: "test", convertTo: "converted", preload: true }],
+      messageConverters: [
+        {
+          fromSchemaName: "schema",
+          toSchemaName: "converted",
+          converter,
+        },
+      ],
+      forceConversion: new Set(),
+      config: { topics: { test: { flag: "initial" } } },
+    };
+
+    const state1 = buildRenderState(baseInput);
+    expect(converter).toHaveBeenCalledTimes(1);
+    expect(state1).toMatchObject({
+      currentFrame: [
+        {
+          topic: "test",
+          schemaName: "converted",
+          message: { converted: "initial" },
+        },
+      ],
+    });
+
+    converter.mockClear();
+
+    const state2 = buildRenderState({
+      ...baseInput,
+      currentFrame: undefined,
+      forceConversion: new Set(["test"]),
+      config: { topics: { test: { flag: "forced" } } },
+    });
+
+    expect(converter).toHaveBeenCalledTimes(1);
+    expect(state2).toMatchObject({
+      currentFrame: [
+        {
+          topic: "test",
+          schemaName: "converted",
+          message: { converted: "forced" },
         },
       ],
     });
@@ -958,6 +1038,7 @@ describe("renderState", () => {
         hoverValue: undefined,
         sharedPanelState: {},
         ...stableConversionInputs,
+        forceConversion: new Set(),
       });
 
       expect(state).toEqual({
@@ -985,6 +1066,7 @@ describe("renderState", () => {
         hoverValue: undefined,
         sharedPanelState: {},
         ...stableConversionInputs,
+        forceConversion: new Set(),
       });
 
       expect(state).toEqual({
@@ -1004,6 +1086,7 @@ describe("renderState", () => {
         hoverValue: undefined,
         sharedPanelState: {},
         ...stableConversionInputs,
+        forceConversion: new Set(),
       });
 
       expect(state).toEqual(undefined);
@@ -1061,6 +1144,7 @@ describe("renderState", () => {
         },
       ],
       config: { topics: { myTopic: { test: false } } },
+      forceConversion: new Set(),
     });
 
     expect(checkRenderedConfig).toHaveBeenCalled();
