@@ -2,24 +2,21 @@
 // SPDX-FileCopyrightText: Copyright (C) 2023-2026 Bayerische Motoren Werke Aktiengesellschaft (BMW AG)<lichtblick@bmwgroup.com>
 // SPDX-License-Identifier: MPL-2.0
 
-import { setupJestCanvasMock } from "jest-canvas-mock";
-
-import { IRenderer } from "../IRenderer";
-import { ModelCache, ModelCacheOptions } from "../ModelCache"
 import * as THREE from "three";
 
-import { createRenderable } from "./Urdfs";
-import { CUBE_GLB_TEST } from "./MockAssets";
-
 import {
-  UrdfGeometryMesh,
   UrdfRobot,
   UrdfVisual,
 } from "@lichtblick/den/urdf";
 
+import { IRenderer } from "../IRenderer";
+import { ModelCache } from "../ModelCache"
+import { CUBE_GLB_TEST } from "./MockAssets";
+import { createRenderable } from "./Urdfs";
+
 jest.mock("three/examples/jsm/libs/draco/draco_decoder.wasm", () => "");
 
-async function mockFetch(url: string, opts?: { signal?: AbortSignal }) {
+async function mockFetch(url: string, _opts?: { signal?: AbortSignal }) {
   let response = {};
 
   switch (url) {
@@ -59,19 +56,19 @@ const mockRenderer: IRenderer = {
       addToTopic: mockAddToTopic,
       remove: mockRemove,
       removeFromTopic: mockRemoveFromTopic,
-      hasError: hasError
+      hasError
     },
   },
   config: {
     topics: new Map()
   },
-  modelCache: modelCache
+  modelCache
 } as unknown as IRenderer;
 
 describe("Urdfs", () => {
   describe("loading glTF files", () => {
-    let robot: UrdfRobot = { name: "mock" };
-    let visual: UrdfVisual = {
+    const robot: UrdfRobot = { name: "mock" };
+    const visual: UrdfVisual = {
       geometry: {
         geometryType: "mesh",
         filename: "file:///mock/cube.glb",
@@ -83,9 +80,9 @@ describe("Urdfs", () => {
       }
     };
 
-    let renderable = createRenderable({
-      visual: visual,
-      robot: robot,
+    const renderable = createRenderable({
+      visual,
+      robot,
       id: 0,
       frameId: "test-frame",
       renderer: mockRenderer
