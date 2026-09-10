@@ -4,7 +4,7 @@
 
 import * as THREE from "three";
 
-import { ModelCache } from "./ModelCache"
+import { ModelCache } from "./ModelCache";
 import { CUBE_GLB_TEST } from "./renderables/MockAssets";
 
 jest.mock("three/examples/jsm/libs/draco/draco_decoder.wasm", () => "");
@@ -13,7 +13,7 @@ async function mockFetch(url: string, _opts?: { signal?: AbortSignal }) {
   let response = {};
 
   switch (url) {
-    case 'file:///mock/cube.glb':
+    case "file:///mock/cube.glb":
       response = CUBE_GLB_TEST;
       break;
     default:
@@ -36,14 +36,10 @@ describe("ModelCache", () => {
         edgeMaterial: new THREE.LineBasicMaterial({ dithering: true }),
         ignoreColladaUpAxis: true,
         meshUpAxis: "y_up",
-        fetchAsset: mockFetch
+        fetchAsset: mockFetch,
       });
 
-      const model = await modelCache.load(
-        "file:///mock/cube.glb",
-        {},
-        mockError
-      )
+      const model = await modelCache.load("file:///mock/cube.glb", {}, mockError);
 
       expect(model.rotation.x).toEqual(1.5707963267948963);
       expect(model.rotation.y).toEqual(0);

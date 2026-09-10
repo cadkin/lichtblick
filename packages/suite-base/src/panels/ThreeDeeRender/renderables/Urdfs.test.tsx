@@ -4,13 +4,10 @@
 
 import * as THREE from "three";
 
-import {
-  UrdfRobot,
-  UrdfVisual,
-} from "@lichtblick/den/urdf";
+import { UrdfRobot, UrdfVisual } from "@lichtblick/den/urdf";
 
 import { IRenderer } from "../IRenderer";
-import { ModelCache } from "../ModelCache"
+import { ModelCache } from "../ModelCache";
 import { CUBE_GLB_TEST } from "./MockAssets";
 import { createRenderable } from "./Urdfs";
 
@@ -20,7 +17,7 @@ async function mockFetch(url: string, _opts?: { signal?: AbortSignal }) {
   let response = {};
 
   switch (url) {
-    case 'file:///mock/cube.glb':
+    case "file:///mock/cube.glb":
       response = CUBE_GLB_TEST;
       break;
     default:
@@ -44,7 +41,7 @@ const modelCache = new ModelCache({
   edgeMaterial: new THREE.LineBasicMaterial({ dithering: true }),
   ignoreColladaUpAxis: true,
   meshUpAxis: "y_up",
-  fetchAsset: mockFetch
+  fetchAsset: mockFetch,
 });
 
 const mockRenderer: IRenderer = {
@@ -56,13 +53,13 @@ const mockRenderer: IRenderer = {
       addToTopic: mockAddToTopic,
       remove: mockRemove,
       removeFromTopic: mockRemoveFromTopic,
-      hasError
+      hasError,
     },
   },
   config: {
-    topics: new Map()
+    topics: new Map(),
   },
-  modelCache
+  modelCache,
 } as unknown as IRenderer;
 
 describe("Urdfs", () => {
@@ -75,9 +72,9 @@ describe("Urdfs", () => {
       },
 
       origin: {
-        xyz: {x: 0, y: 0, z: 0},
-        rpy: {x: 0, y: 0, z: 0}
-      }
+        xyz: { x: 0, y: 0, z: 0 },
+        rpy: { x: 0, y: 0, z: 0 },
+      },
     };
 
     const renderable = createRenderable({
@@ -85,7 +82,7 @@ describe("Urdfs", () => {
       robot,
       id: 0,
       frameId: "test-frame",
-      renderer: mockRenderer
+      renderer: mockRenderer,
     });
 
     it("should preserve embedded materials", () => {
@@ -93,10 +90,10 @@ describe("Urdfs", () => {
         isColor: true,
         r: 0.8000074625015259,
         g: 0.058865584433078766,
-        b: 0.03260880336165428
+        b: 0.03260880336165428,
       };
 
-      expect(renderable['mesh'].children[0].material.color).toEqual(expected);
+      expect(renderable["mesh"].children[0].material.color).toEqual(expected);
     });
   });
 });

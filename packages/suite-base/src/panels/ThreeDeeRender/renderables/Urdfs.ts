@@ -1095,12 +1095,12 @@ export function createRenderable(args: {
     }
     case "mesh": {
       const isCollada = visual.geometry.filename.toLowerCase().endsWith(".dae");
-      const isGLTF = (
+      const isGLTF =
         visual.geometry.filename.toLowerCase().endsWith(".gltf") ||
-        visual.geometry.filename.toLowerCase().endsWith(".glb")
-      );
+        visual.geometry.filename.toLowerCase().endsWith(".glb");
       // Use embedded materials if the mesh is a Collada file
-      const embedded = (isCollada || isGLTF) ? EmbeddedMaterialUsage.Use : EmbeddedMaterialUsage.Ignore;
+      const embedded =
+        isCollada || isGLTF ? EmbeddedMaterialUsage.Use : EmbeddedMaterialUsage.Ignore;
       const marker = createMeshMarker(frameId, pose, embedded, visual.geometry, baseUrl, color);
       return new RenderableMeshResource(name, marker, undefined, renderer, {
         referenceUrl: baseUrl,
