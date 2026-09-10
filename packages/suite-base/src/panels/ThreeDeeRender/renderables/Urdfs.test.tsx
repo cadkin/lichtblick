@@ -10,11 +10,12 @@ import { IRenderer } from "../IRenderer";
 import { ModelCache } from "../ModelCache";
 import { CUBE_GLB_TEST } from "./MockAssets";
 import { createRenderable } from "./Urdfs";
+import { RenderableMeshResource } from "./markers/RenderableMeshResource";
 
 jest.mock("three/examples/jsm/libs/draco/draco_decoder.wasm", () => "");
 
 async function mockFetch(url: string, _opts?: { signal?: AbortSignal }) {
-  let response = {};
+  let response: Uint8Array = new Uint8Array();
 
   switch (url) {
     case "file:///mock/cube.glb":
@@ -64,7 +65,12 @@ const mockRenderer: IRenderer = {
 
 describe("Urdfs", () => {
   describe("loading glTF files", () => {
-    const robot: UrdfRobot = { name: "mock" };
+    const robot: UrdfRobot = {
+      name: "mock",
+      links: new Map(),
+      joints: new Map(),
+      materials: new Map(),
+    };
     const visual: UrdfVisual = {
       geometry: {
         geometryType: "mesh",
@@ -93,7 +99,10 @@ describe("Urdfs", () => {
         b: 0.03260880336165428,
       };
 
-      expect(renderable["mesh"].children[0].material.color).toEqual(expected);
+      const mesh = (renderable as RenderableMeshResource)["mesh" as keyof RenderableMeshResource];
+      const child = (mesh as THREE.Group)?.children[0];
+      const material = (child as THREE.Mesh)?.material as THREE.MeshStandardMaterial;
+      expect(material.color).toEqual(expected);
     });
   });
 });

@@ -10,7 +10,7 @@ import { CUBE_GLB_TEST } from "./renderables/MockAssets";
 jest.mock("three/examples/jsm/libs/draco/draco_decoder.wasm", () => "");
 
 async function mockFetch(url: string, _opts?: { signal?: AbortSignal }) {
-  let response = {};
+  let response: Uint8Array = new Uint8Array();
 
   switch (url) {
     case "file:///mock/cube.glb":
@@ -41,12 +41,12 @@ describe("ModelCache", () => {
 
       const model = await modelCache.load("file:///mock/cube.glb", {}, mockError);
 
-      expect(model.rotation.x).toEqual(1.5707963267948963);
-      expect(model.rotation.y).toEqual(0);
+      expect(model?.rotation.x).toEqual(1.5707963267948963);
+      expect(model?.rotation.y).toEqual(0);
       // FP inaccurary means this is 'neg' zero after the rotation.
-      expect(model.rotation.z).toEqual(-0);
+      expect(model?.rotation.z).toEqual(-0);
 
-      console.warn.mockClear();
+      (console.warn as jest.Mock).mockClear();
     });
   });
 });
