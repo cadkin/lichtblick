@@ -27,6 +27,7 @@ export type ModelCacheOptions = {
   edgeMaterial: THREE.Material;
   ignoreColladaUpAxis: boolean;
   meshUpAxis: MeshUpAxis;
+  meshOutline: boolean;
   fetchAsset: BuiltinPanelExtensionContext["unstable_fetchAsset"];
 };
 
@@ -72,7 +73,13 @@ export class ModelCache {
     }
 
     promise = this.#loadModel(url, opts, reportError)
-      .then((model) => addEdges(model, this.#edgeMaterial))
+      .then((model) => {
+        if (this.options.meshOutline) {
+          return addEdges(model, this.#edgeMaterial)
+        }
+
+        return model
+      })
       .catch(async (err: unknown) => {
         reportError(err as Error);
         return undefined;

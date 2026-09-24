@@ -63,6 +63,9 @@ export const threeDee = {
     "Match the behavior of rviz by ignoring the <up_axis> tag in COLLADA files",
   labelScale: "Label scale",
   labelScaleHelp: "Scale factor to apply to all labels",
+  meshOutline: "Mesh outlines",
+  meshOutlineHelp:
+    "If the outlines on meshes should be shown or not",
   meshUpAxis: "Mesh up axis",
   meshUpAxisHelp:
     "The direction to use as “up” when loading meshes without orientation info (STL and OBJ)",
