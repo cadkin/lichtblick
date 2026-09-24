@@ -133,6 +133,7 @@ export type RendererConfig = {
     /** Ignore the <up_axis> tag in COLLADA files (matching rviz behavior) */
     ignoreColladaUpAxis?: boolean;
     meshUpAxis?: MeshUpAxis;
+    meshOutline?: boolean;
     /**
      * Fixed world-space directional light vs camera-attached headlight (RViz-style).
      * Defaults to "fixed".

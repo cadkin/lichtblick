@@ -86,6 +86,17 @@ export class SceneSettings extends SceneExtension {
             ? t("threeDee:takeEffectAfterReboot")
             : undefined,
       },
+      meshOutline: {
+        label: t("threeDee:meshOutline"),
+        help: t("threeDee:meshOutlineHelp"),
+        input: "boolean",
+        value: config.scene.meshOutline ?? true,
+        error:
+          (config.scene.meshOutline ?? true) !==
+          this.renderer.modelCache.options.meshOutline
+            ? t("threeDee:takeEffectAfterReboot")
+            : undefined,
+      },
       mainLightMode: {
         label: t("threeDee:mainLightMode"),
         help: t("threeDee:mainLightModeHelp"),

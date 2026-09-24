@@ -36,6 +36,7 @@ describe("ModelCache", () => {
         edgeMaterial: new THREE.LineBasicMaterial({ dithering: true }),
         ignoreColladaUpAxis: true,
         meshUpAxis: "y_up",
+        meshOutline: true,
         fetchAsset: mockFetch,
       });
 
